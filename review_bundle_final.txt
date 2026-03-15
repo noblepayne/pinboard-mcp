@@ -1,0 +1,116 @@
+# pinboard-mcp: Production-Ready Review Bundle
+
+## Project Overview
+- **Name:** pinboard-mcp
+- **Type:** Babashka/Streamable-HTTP MCP server for Pinboard API
+- **Transport:** MCP Streamable HTTP (2025-03-26 spec)
+- **Commit:** HEAD (production-ready state)
+
+## What's New Since Main
+
+All new files (no changes to existing files on main):
+- Core server: `pinboard_mcp.bb` (463 lines)
+- Nix packaging: `flake.nix` (125 lines)
+- Task runner: `bb.edn` (34 lines)
+- Tests: `test_unit.clj`, `test_pinboard_mcp.clj`, `test_pinboard_mcp_staging.clj`
+- Docs: `README.md`, `SPEC.md`, `AGENTS.md`, `DEVLOG.md`, `CHANGELOG.md`
+
+## Key Architectural Decisions
+
+### 1. Concurrency Model
+- **Atoms + CAS:** Uses `compare-and-set!` with `loop/recur` for session management
+- **No locks:** Removed blocking `locking` in favor of optimistic concurrency
+- **In-flight gate:** `fetch-inflight?` atom prevents thundering herd on cache miss
+
+### 2. Cache Strategy
+- **TTL-based:** 60s throttle on `posts/update` check
+- **Invalidate on write:** `add-bookmark!` and `delete-bookmark!` set `:checked-at 0`
+- **Stale fallback:** Returns cached data on API errors
+
+### 3. Rate Limiting
+- **429 handling:** `pinboard-request` retries once after 5s sleep
+- **Single retry:** Personal use bar (not full exponential backoff)
+
+### 4. Session Safety
+- **Pruning guarantee:** New session explicitly excluded from pruning pool
+- **Dec max-sessions:** Keeps one slot guaranteed for new sid
+
+### 5. Tag Filtering
+- **Correct ordering:** Fetch all → filter by tag → apply limit (not the reverse)
+
+### 6. Nix Module Structure
+- **Top-level nixosModules:** Outside `eachDefaultSystem` for importability
+- **Single-file src:** `src = ./pinboard_mcp.bb` with `dontUnpack = true`
+- **DynamicUser:** Ephemeral system user for security
+
+## Testing Strategy
+
+| Test Type | Coverage | Command |
+|-----------|----------|---------|
+| Unit | Pure logic (parsing, normalization) | `bb tests/test_unit.clj` |
+| Integration | JSON-RPC lifecycle, fake API | `bb test` |
+| Staging | Real Pinboard API | `bb test-staging` |
+
+## Quick Start
+
+```bash
+# Dev server
+bb start
+
+# Run tests
+bb test
+
+# Install via Nix
+nix profile install .
+```
+
+## Issues Fixed from Review
+
+| ID | Severity | Fix |
+|----|----------|-----|
+| C-1 | Critical | nixosModules at top-level |
+| H-1 | High | Tag/limit ordering |
+| H-2 | High | Session pruning guarantee |
+| H-3 | High | 429 retry logic |
+| M-1 | Medium | In-flight fetch gate |
+| M-2 | Medium | ProtectHome="yes" |
+| M-3 | Medium | pinboard-request naming |
+| M-4 | Medium | Single-file src |
+| L-1 | Low | Dynamic version |
+| L-2 | Low | Comment for unstable |
+
+---
+
+# Prompt for Next Claude Session
+
+You are taking over a production-ready pinboard-mcp project. Here's the context:
+
+## Current State
+- The MCP server is fully functional with 6 tools: list_bookmarks, search_bookmarks, add_bookmark, delete_bookmark, list_tags, recent_bookmarks
+- All tests pass (unit, integration, staging)
+- Nix module is importable at `inputs.pinboard-mcp.nixosModules.default`
+
+## Key Files
+- `pinboard_mcp.bb` - Main server (single file, ~460 lines)
+- `flake.nix` - Nix packaging with NixOS module
+- `tests/test_unit.clj` - 14 unit tests
+- `AGENTS.md` - Development philosophy and workflow
+
+## Common Tasks
+- **Run server:** `bb start` (port 3030) or `bb serve` (OS-assigned port)
+- **Run tests:** `bb test` (integration) or `bb tests/test_unit.clj` (unit)
+- **Lint:** `nix run nixpkgs#clj-kondo -- --lint pinboard_mcp.bb`
+- **Format:** `nix run nixpkgs#cljfmt -- fix pinboard_mcp.bb`
+
+## Gotchas
+- Token via `PINBOARD_TOKEN` env or `~/.config/pinboard/config.edn`
+- Cache invalidates on write (add/delete bookmark)
+- Rate limit: 1 req/3s on Pinboard API (handled with retry)
+
+## Architecture Notes
+- Uses atoms with compare-and-set for concurrency
+- fetch-bookmarks has in-flight gate to prevent duplicate API calls
+- Session pruning explicitly guarantees new session survives
+- Tag filtering applies BEFORE limit (not after)
+
+Ready to work on the codebase. What would you like to do?
