@@ -1,8 +1,5 @@
 # pinboard-mcp
 
-> "Simple is the opposite of complex. Easy is the opposite of hard."
-> — Rich Hickey
-
 A Babashka Streamable HTTP MCP server wrapping the Pinboard bookmarking API. AI agents can manage bookmarks better than humans typing commands.
 
 **Transport:** MCP Streamable HTTP (spec `2025-03-26`)
@@ -178,6 +175,7 @@ PINBOARD_TEST_TOKEN="username:real-token" bb test-staging
 ## Technical Notes
 
 **Cache Behavior:** The server caches bookmark data to reduce API calls. Cache is refreshed when:
+
 - 60 seconds have passed since last check (`cache-ttl-ms`)
 - A bookmark is added or deleted (cache is invalidated immediately via `:checked-at 0`)
 
